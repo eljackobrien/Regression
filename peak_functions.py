@@ -11,6 +11,123 @@ import matplotlib.pyplot as plt
 
 run_timing_tests = 0
 
+#%% Classes
+class Gaussian_class:
+    def  __init__(self, x, x0, sig, y0=1):
+        self.x = x
+        self.x0 = x0
+        self.sig = sig
+        self.y0 = y0
+        self.re_calc()
+
+    def re_calc(self):
+        self.y = self.y0 * np.exp(-(self.x - self.x0)**2 / (2*self.sig**2))
+        self.FWHM = 2.35482 * self.sig
+        self.area = 2.50662827 * self.y0 * self.sig
+        self.breadth = 2.50662827 * self.sig  # integral breadth
+
+    def set(self, x=None, x0=None, sig=None, y0=None):
+        if type(x) != type(None): self.x = x
+        if type(x0) != type(None): self.x0 = x0
+        if type(sig) != type(None): self.sig = sig
+        if type(y0) != type(None): self.y0 = y0
+        self.re_calc()
+
+    def plot(self):
+        fig, ax = plt.subplots(1,1, figsize=[6,3], constrained_layout=True)
+        lab = f"Gaussian:\nx0 = {self.x0:.3g}\nFWHM = {self.FWHM:.3g}\nheight = {self.y0:.3g}"
+        ax.plot(self.x, self.y, lw=1.0, c='r', label=lab)
+        ax.grid(), ax.legend()
+        plt.show()
+
+class Lorentzian_class:
+    def  __init__(self, x, x0, gam, y0=1):
+        self.x = x
+        self.x0 = x0
+        self.gam = gam
+        self.y0 = y0
+        self.re_calc()
+
+    def re_calc(self):
+        self.y = self.y0 * self.gam**2 / ( (self.x - self.x0)**2 + self.gam**2 )
+        self.FWHM = 2 * self.gam
+        self.area = np.pi * self.y0 * self.gam
+        self.breadth = np.pi * self.gam
+
+    def set(self, x=None, x0=None, gam=None, y0=None):
+        if type(x) != type(None): self.x = x
+        if type(x0) != type(None): self.x0 = x0
+        if type(gam) != type(None): self.gam = gam
+        if type(y0) != type(None): self.y0 = y0
+        self.re_calc()
+
+    def plot(self):
+        fig, ax = plt.subplots(1,1, figsize=[6,3], constrained_layout=True)
+        lab = f"Lorentzian:\nx0 = {self.x0:.3g}\nFWHM = {self.FWHM:.3g}\nheight = {self.y0:.3g}"
+        ax.plot(self.x, self.y, lw=1.0, c='r', label=lab)
+        ax.grid(), ax.legend()
+        plt.show()
+
+class Voigt_class:
+    def  __init__(self, x, x0, sig, gam, y0=1):
+        self.x = x
+        self.x0 = x0
+        self.sig = sig
+        self.gam = gam
+        self.y0 = y0
+        self.re_calc()
+
+    def re_calc(self):
+        g = np.exp(-(self.x - self.x.mean())**2 / (2*self.sig**2))  # gaussian, centred in x so convolution doesn't shift peak
+        l = self.gam**2 / ( (self.x - self.x0)**2 + self.gam**2 )  # lorentzian
+        self.y = np.convolve( g, l, mode='same' )  # do the convolution
+        self.y *= self.y0/self.y.max()  # normalise the height
+
+        self.FWHM = 1.0692*self.gam + (0.86639*self.gam**2 + 5.545177*self.sig**2)**0.5  # wikipedia
+
+        k = self.gam/( (2**0.5) * self.sig )
+        A, B, C, D, E = 0.9039645, 0.7699548, 1.364216, 1.136195, 0.9394372
+        self.breadth = self.FWHM * (1 + C*k + D*k**2)/(E*(1 + A*k + B*k**2))  # birkholz 2006 book
+
+        self.area = self.y0 * self.breadth
+
+    def set(self, x=None, x0=None, sig=None, gam=None, y0=None):
+        if type(x) != type(None): self.x = x
+        if type(x0) != type(None): self.x0 = x0
+        if type(sig) != type(None): self.sig = sig
+        if type(gam) != type(None): self.gam = gam
+        if type(y0) != type(None): self.y0 = y0
+        self.re_calc()
+
+    def plot(self):
+        fig, ax = plt.subplots(1,1, figsize=[6,3], constrained_layout=True)
+        lab = f"Lorentzian:\nx0 = {self.x0:.3g}\nFWHM = {self.FWHM:.3g}\nheight = {self.y0:.3g}"
+        ax.plot(self.x, self.y, lw=1.0, c='r', label=lab)
+        ax.grid(), ax.legend()
+        plt.show()
+
+if __name__ in "__main__":
+    def FWHM(x, y):
+        temp = abs(y - y.max()/2)
+        y0_ind = y.argmax()
+        HM_left, HM_right = temp[:y.argmax()].argmin(), temp[y.argmax():].argmin()+y.argmax()
+        return abs(x[HM_right] - x[HM_left])
+
+    from scipy.integrate import simpson, trapezoid
+
+    x = np.linspace(-90,90,11110)
+    x0 = 0
+    sig, gam, A = 2, 1, 1
+
+    G = Gaussian_class(x, x0, sig, A)
+    L = Lorentzian_class(x, x0, gam, A)
+    V = Voigt_class(x, x0, sig, gam, A)
+
+    print(f"{FWHM(G.x, G.y):.4f}, {G.FWHM:.4f}"), print(f"{trapezoid(G.y, G.x):.3f}, {simpson(G.y, G.x):.3f}, {G.area:.3f}")
+    print(f"{FWHM(L.x, L.y):.4f}, {L.FWHM:.4f}"), print(f"{trapezoid(L.y, L.x):.3f}, {simpson(L.y, L.x):.3f}, {L.area:.3f}")
+    print(f"{FWHM(V.x, V.y):.4f}, {V.FWHM:.4f}"), print(f"{trapezoid(V.y, V.x):.3f}, {simpson(V.y, V.x):.3f}, {V.area:.3f}")
+
+
 #%% Standard normalised form Gaussian, Lorentzian, PV and Voigt Functions
 def Gaussian(x, x0, sig, A=1): return A/(sig * np.sqrt(2*np.pi)) * np.exp( -(x-x0)**2 / (2*sig**2) )
 def Lorentzian(x, x0, gam, A=1): return A/np.pi * (0.5*gam) / ( (x-x0)**2 + (0.5*gam)**2 )
